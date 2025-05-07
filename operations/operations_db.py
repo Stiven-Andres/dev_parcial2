@@ -71,7 +71,7 @@ async def obtener_usuarios_inactivos_y_premium(session: AsyncSession):
     result = await session.execute(query)
     return result.scalars().all()
 
-async def create_task_sql(session: AsyncSession, task: TaskSQL):
+async def crear_task_sql(session: AsyncSession, task: TaskSQL):
     db_task = TaskSQL.model_validate(task, from_attributes=True)
     db_task.created_at = datetime.utcnow()
 
@@ -80,15 +80,15 @@ async def create_task_sql(session: AsyncSession, task: TaskSQL):
     await session.refresh(db_task)
     return db_task
 
-async def get_all_tasks(session: AsyncSession):
+async def obtener_todas_las_tasks(session: AsyncSession):
     query = select(TaskSQL).where(TaskSQL.estado != EstadoTask.eliminada)
     results = await session.exec(query)
     return results.all()
 
-async def get_task_by_id(session: AsyncSession, task_id: int):
+async def obtener_task_por_id(session: AsyncSession, task_id: int):
     return await session.get(TaskSQL, task_id)
 
-async def update_task(session: AsyncSession, task_id: int, task_update: Dict[str, Any]):
+async def actualizar_task(session: AsyncSession, task_id: int, task_update: Dict[str, Any]):
     task = await session.get(TaskSQL, task_id)
     if not task:
         return None
@@ -103,7 +103,7 @@ async def update_task(session: AsyncSession, task_id: int, task_update: Dict[str
     await session.refresh(task)
     return task
 
-async def delete_task(session: AsyncSession, task_id: int):
+async def eliminar_task(session: AsyncSession, task_id: int):
     task = await session.get(TaskSQL, task_id)
     if not task:
         return None
