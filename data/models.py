@@ -4,6 +4,12 @@ from datetime import datetime
 from enum import Enum
 from pydantic import ConfigDict
 
+class EstadoTask(str, Enum):
+    pendiente = "Pendiente"
+    en_progreso = "En Progreso"
+    completada = "Completada"
+    eliminada = "Eliminada"
+
 
 class TaskSQL(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
