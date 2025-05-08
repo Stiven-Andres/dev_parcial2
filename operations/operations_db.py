@@ -2,14 +2,26 @@ from sqlalchemy.future import select
 from sqlalchemy import update
 from data.models import UsuarioSQL, EstadoUsuario, TaskSQL, EstadoTask
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from sqlmodel import Session
 from sqlmodel.ext.asyncio.session import AsyncSession
+
+
 
 from data.models import UsuarioSQL
 
 
+def remove_tzinfo(dt: Optional[datetime | str]) -> Optional[datetime]:
+    if isinstance(dt, str):
+        dt = datetime.fromisoformat(dt)  # convierte string a datetime
+    if isinstance(dt, datetime) and dt.tzinfo:
+        return dt.replace(tzinfo=None)
+    return dt
+
 async def create_user_sql(session: AsyncSession, usuario: UsuarioSQL):
+    usuario.created_at = remove_tzinfo(usuario.created_at)
+    usuario.updated_at = remove_tzinfo(usuario.updated_at)
+
     db_usuario = UsuarioSQL.model_validate(usuario, from_attributes=True)
     db_usuario.created_at = datetime.now()
 
@@ -72,6 +84,9 @@ async def obtener_usuarios_inactivos_y_premium(session: AsyncSession):
     return result.scalars().all()
 
 async def crear_task_sql(session: AsyncSession, task: TaskSQL):
+    task.created_at = remove_tzinfo(task.created_at)
+    task.updated_at = remove_tzinfo(task.updated_at)
+
     db_task = TaskSQL.model_validate(task, from_attributes=True)
     db_task.created_at = datetime.utcnow()
 
@@ -81,27 +96,22 @@ async def crear_task_sql(session: AsyncSession, task: TaskSQL):
     return db_task
 
 async def obtener_todas_las_tasks(session: AsyncSession):
-    query = select(TaskSQL).where(TaskSQL.estado != EstadoTask.eliminada)
-    results = await session.exec(query)
-    return results.all()
+    query = select(TaskSQL)
+    result = await session.execute(query)
+    return result.scalars().all()
 
 async def obtener_task_por_id(session: AsyncSession, task_id: int):
     return await session.get(TaskSQL, task_id)
 
-async def actualizar_task(session: AsyncSession, task_id: int, task_update: Dict[str, Any]):
-    task = await session.get(TaskSQL, task_id)
-    if not task:
-        return None
-
-    for key, value in task_update.items():
-        if value is not None and hasattr(task, key):
-            setattr(task, key, value)
-
-    task.actualizada_en = datetime.utcnow()
-    session.add(task)
+async def actualizar_task(session: AsyncSession, task_id: int, nuevo_estado: EstadoTask):
+    query = (
+        update(TaskSQL)
+        .where(TaskSQL.id == task_id)
+        .values(estado=nuevo_estado, updated_at=datetime.utcnow())
+        .execution_options(synchronize_session="fetch")
+    )
+    await session.execute(query)
     await session.commit()
-    await session.refresh(task)
-    return task
 
 async def eliminar_task(session: AsyncSession, task_id: int):
     task = await session.get(TaskSQL, task_id)
@@ -109,11 +119,8 @@ async def eliminar_task(session: AsyncSession, task_id: int):
         return None
 
     task.estado = EstadoTask.eliminada
-    task.actualizada_en = datetime.utcnow()
+    task.updated_at = datetime.utcnow()
     session.add(task)
     await session.commit()
     await session.refresh(task)
     return task
-
-
-

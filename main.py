@@ -1,13 +1,14 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, Path
+from fastapi import FastAPI, APIRouter, Depends, HTTPException, status, Path, Query
 from utils.connection_db import *
 from sqlmodel.ext.asyncio.session import AsyncSession
-from data.models import UsuarioSQL, EstadoUsuario
+from data.models import UsuarioSQL, EstadoUsuario, TaskSQL, EstadoTask
 from operations.operations_db import create_user_sql, obtener_todos_los_usuarios, obtener_usuario_por_id, actualizar_estado_usuario,hacer_usuario_premium, obtener_usuarios_inactivos, obtener_usuarios_inactivos_y_premium, crear_task_sql, obtener_todas_las_tasks, obtener_task_por_id, actualizar_task, eliminar_task
+from typing import List, Dict, Any
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inicializa la BD antes de levantar el servidor
     await init_db()
     yield
 
@@ -75,42 +76,36 @@ async def hacer_premium(usuario_id: int, session: AsyncSession = Depends(get_ses
     return await hacer_usuario_premium(session, usuario_id)
 
 @app.post("/", response_model=TaskSQL)
-async def crear_task_sql(task: TaskSQL, session: AsyncSession = Depends(get_session)):
+async def crear_task(task: TaskSQL, session: AsyncSession = Depends(get_session)):
     return await crear_task_sql(session, task)
 
 
-@app.get("/", response_model=List[TaskSQL])
-async def obtener_todas_las_tasks(session: AsyncSession = Depends(get_session)):
+@app.get("/tasks", response_model=List[TaskSQL])
+async def obtener_todas_tasks(session: AsyncSession = Depends(get_session)):
     return await obtener_todas_las_tasks(session)
 
 
 @app.get("/{task_id}", response_model=TaskSQL)
-async def obtener_task_por_id(task_id: int, session: AsyncSession = Depends(get_session)):
+async def obtener_task_atraves_id(task_id: int, session: AsyncSession = Depends(get_session)):
     task = await obtener_task_por_id(session, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
 
-# UPDATE task
-@app.put("/{task_id}", response_model=TaskSQL)
-async def actualizar_task(task_id: int, task_data: Dict[str, Any], session: AsyncSession = Depends(get_session)):
-    task = await actualizar_task(session, task_id, task_data)
-    if not task:
-        raise HTTPException(status_code=404, detail="Task not found")
-    return task
+@app.put("/tasks/{task_id}/estado")
+async def actualizar_estado_task_endpoint(
+    task_id: int,
+    nuevo_estado: EstadoTask = Query(..., description="Nuevo estado de la task"),
+    session: AsyncSession = Depends(get_session)
+):
+    await actualizar_task(session, task_id, nuevo_estado)
+    return {"mensaje": f"Estado de la task {task_id} actualizado a {nuevo_estado}"}
 
 # DELETE (logical) task
 @app.delete("/{task_id}", response_model=TaskSQL)
-async def eliminar_task(task_id: int, session: AsyncSession = Depends(get_session)):
+async def eliminar_la_task(task_id: int, session: AsyncSession = Depends(get_session)):
     task = await eliminar_task(session, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     return task
-
-
-
-
-
-
-
 
